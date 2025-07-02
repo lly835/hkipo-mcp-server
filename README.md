@@ -110,7 +110,7 @@ interface HKIPOTools {
 ## 快速开始 - 在ChatWise中使用
 
 ### 第1步：获取Token
-在Chrome中访问 https://aipo.myiqdii.com，按F12打开开发者工具，在Console中输入：
+在Chrome中访问 https://aipo.myiqdii.com，登录完成后。打开开发者工具，在Console中输入：
 ```javascript
 localStorage.getItem("token")
 ```

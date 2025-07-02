@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "hkipo-mcp": {
+      "command": "npx",
+      "args": ["hkipo-mcp"],
+      "env": {
+        "TOKEN": "在这里粘贴从localStorage.getItem('token')获取的值"
+      }
+    }
+  }
+} 

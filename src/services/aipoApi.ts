@@ -63,32 +63,18 @@ export class AipoApiClient {
     // 响应拦截器
     this.httpClient.interceptors.response.use(
       (response) => {
-        // 记录成功响应
-        const config = response.config as any;
-        if (config.metadata) {
-          const duration = Date.now() - config.metadata.startTime;
-          NetworkLogger.logRequestSuccess(
-            config.metadata.requestId,
-            config.method?.toUpperCase() || 'GET',
-            config.url || '',
-            response.status,
-            duration
-          );
-        }
+        // 记录成功响应 - 简化处理
         return response;
       },
       (error) => {
         // 记录失败响应
         const config = error.config as any;
         if (config?.metadata) {
-          const duration = Date.now() - config.metadata.startTime;
           NetworkLogger.logRequestError(
             config.metadata.requestId,
             config.method?.toUpperCase() || 'GET',
             config.url || '',
-            error.message,
-            error.response?.status,
-            duration
+            error.message
           );
         }
         return Promise.reject(error);

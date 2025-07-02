@@ -1,7 +1,7 @@
 {
   "name": "hkipo-mcp",
-  "version": "1.0.0",
-  "description": "港股新股信息MCP服务 - 提供实时的香港新股信息查询能力，支持ChatWise等AI助手",
+  "version": "1.0.1",
+  "description": "港股打新信息MCP服务 - 提供实时的香港新股信息查询能力",
   "main": "dist/index.js",
   "type": "module",
   "bin": {
@@ -10,7 +10,6 @@
   "files": [
     "dist/**/*",
     "README.md",
-    "CHATWISE_TOKEN_SETUP.md",
     "chatwise-simple-config.json",
     "env.example"
   ],
@@ -25,27 +24,16 @@
     "mcp",
     "model-context-protocol",
     "hong-kong",
-    "hk",
     "ipo",
     "stock",
-    "trading",
-    "finance",
     "chatwise",
     "ai-assistant",
-    "real-time",
+    "港股",
     "新股",
-    "港股"
+    "打新"
   ],
-  "author": "Hong Kong IPO MCP Team",
+  "author": "HK IPO MCP Team",
   "license": "MIT",
-  "homepage": "https://github.com/your-username/hkipo-mcp-server",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/your-username/hkipo-mcp-server.git"
-  },
-  "bugs": {
-    "url": "https://github.com/your-username/hkipo-mcp-server/issues"
-  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^0.6.0",
     "axios": "^1.6.0",
@@ -54,10 +42,6 @@
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
-    "@typescript-eslint/eslint-plugin": "^6.13.0",
-    "@typescript-eslint/parser": "^6.13.0",
-    "eslint": "^8.55.0",
-    "jest": "^29.7.0",
     "tsx": "^4.6.0",
     "typescript": "^5.3.0"
   },

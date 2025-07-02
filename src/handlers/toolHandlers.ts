@@ -20,8 +20,6 @@ export class ToolHandlers {
    * 获取当前正在招股的新股列表
    */
   async listActiveIPOs(args: any): Promise<any> {
-    const startTime = Date.now();
-    NetworkLogger.logToolCall('list_active_ipos', args);
     try {
       const params: PaginationParams = {
         pageIndex: args.pageIndex || 1,
@@ -30,9 +28,6 @@ export class ToolHandlers {
       };
 
       const result = await this.apiClient.getIPOList(params);
-      
-      const duration = Date.now() - startTime;
-      NetworkLogger.logToolSuccess('list_active_ipos', duration);
       
       return {
         content: [{
@@ -45,7 +40,6 @@ export class ToolHandlers {
         }]
       };
     } catch (error: any) {
-      const duration = Date.now() - startTime;
       NetworkLogger.logToolError('list_active_ipos', error.message);
       
       return {

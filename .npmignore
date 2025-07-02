@@ -1,62 +1,36 @@
-# 源代码
+# 源代码和配置
 src/
 tsconfig.json
-
-# 开发工具
 .git/
 .gitignore
+
+# 依赖和日志
 node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+*.log
+logs/
 
-# 编辑器
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# 操作系统
-.DS_Store
-Thumbs.db
-
-# 测试和开发文件
+# 测试文件
 test-*
 *.test.js
 *.spec.js
-coverage/
 
 # 环境文件
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env*
 
-# 日志
-logs/
-*.log
+# 编辑器和系统
+.vscode/
+.idea/
+.DS_Store
+*.swp
 
-# 临时文件
-tmp/
-temp/
-
-# 构建缓存
-.cache/
-.parcel-cache/
-
-# 其他
+# 构建文件
 *.tgz
-.yarn-integrity
-.pnp.*
-.yarn/
+.cache/
 
-# 发布相关文件
+# 发布脚本
 publish.sh
-PUBLISH_GUIDE.md
 
-# 保留这些文件用于发布
+# 保留发布文件
 !dist/
 !README.md
 !CHATWISE_TOKEN_SETUP.md

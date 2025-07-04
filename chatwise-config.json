@@ -5,7 +5,8 @@
       "args": ["hkipo-mcp"],
       "env": {
         "TOKEN": "在这里粘贴从localStorage.getItem('token')获取的值"
-      }
+      },
+      "description": "港股新股信息MCP服务 - 提供新股列表、详情、暗盘数据、配售结果等功能"
     }
   }
 } 

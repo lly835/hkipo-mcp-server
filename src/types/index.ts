@@ -90,7 +90,6 @@ export interface CompanyInfo {
 export interface IPODetail extends IPOInfo {
   companyInfo: CompanyInfo;
   prospectusUrl?: string;
-  allocation?: AllocationInfo;
   greyMarket?: GreyMarketData;
   firstDayPerformance?: FirstDayPerformance;
 }
@@ -114,6 +113,11 @@ export interface GreyMarketData {
   volume: number;
   brokerQuotes: BrokerQuote[];
   lastUpdated: string;
+  ipoPricing?: number;     // 招股价
+  turnover?: number;       // 成交额
+  shortName?: string;      // 股票简称
+  listingDate?: string;    // 上市日期
+  resultDate?: string;     // 公布结果日期
 }
 
 // 券商报价接口
@@ -165,6 +169,7 @@ export interface PaginatedResponse<T> {
 // 配置接口
 export interface MCPConfig {
   aipoBaseUrl: string;
+  jybBaseUrl: string;
   userAgent: string;
   rateLimit: number;
   rateLimitWindow: number;
@@ -176,4 +181,36 @@ export interface ApiError {
   code: string;
   message: string;
   details?: any;
+}
+
+// 配售结果接口
+export interface PlacingResult {
+  stockCode: string;
+  stockName: string;
+  lotSize: number;
+  totalShares: number;
+  allocationRate: string;
+  clawBack: number;
+  subscribed: number;
+  placementTimes: number;
+  codesRate: number;
+  headHammer: number;
+  priceCeiling: number;
+  priceFloor: number;
+  ipoPricing: number;
+  raiseMoney: number;
+  invalidApplication: number;
+  allocationResultUrl?: string;
+  allocationList: AllocationLevel[];
+}
+
+// 配售结果分配层级
+export interface AllocationLevel {
+  shares: number;
+  applicants: number;
+  successfulApplicants: number | null;
+  winningRate: number;
+  allocationDetails: string;
+  isPlacee: number;
+  amount: number;
 } 

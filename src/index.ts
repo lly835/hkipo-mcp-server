@@ -47,8 +47,6 @@ class HKIPOMCPServer {
             return await this.toolHandlers.listActiveIPOs(args);
           case 'get_ipo_details':
             return await this.toolHandlers.getIPODetails(args);
-          case 'get_allocation_info':
-            return await this.toolHandlers.getAllocationInfo(args);
           case 'get_grey_market_data':
             return await this.toolHandlers.getGreyMarketData(args);
           case 'get_first_day_performance':
@@ -57,6 +55,8 @@ class HKIPOMCPServer {
             return await this.toolHandlers.searchIPOByName(args);
           case 'get_market_overview':
             return await this.toolHandlers.getMarketOverview(args);
+          case 'get_placing_result':
+            return await this.toolHandlers.getPlacingResult(args);
           default:
             throw new Error(`未知的工具: ${name}`);
         }

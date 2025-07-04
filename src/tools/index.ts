@@ -30,22 +30,7 @@ export const tools: Tool[] = [
   },
   {
     name: 'get_ipo_details',
-    description: '获取特定新股的详细信息，包括招股价格、一手股数、募资金额、招股书链接等',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        stock_code: {
-          type: 'string',
-          description: '股票代码，例如：01304',
-          pattern: '^[0-9]{4,5}$',
-        },
-      },
-      required: ['stock_code'],
-    },
-  },
-  {
-    name: 'get_allocation_info',
-    description: '获取新股配售信息，包括中签率、认购倍数、配售结果等',
+    description: '获取特定新股的详细信息，包括招股价格、一手股数、募资金额等',
     inputSchema: {
       type: 'object',
       properties: {
@@ -75,7 +60,7 @@ export const tools: Tool[] = [
   },
   {
     name: 'get_first_day_performance',
-    description: '获取新股首日上市表现，包括开盘价、最高价、最低价、收盘价、涨跌幅等',
+    description: '获取新股首日上市表现（注意：此功能已移除，将返回提示信息）',
     inputSchema: {
       type: 'object',
       properties: {
@@ -123,6 +108,20 @@ export const tools: Tool[] = [
         },
       },
       required: [],
+    },
+  },
+  {
+    name: 'get_placing_result',
+    description: '获取新股配售结果详情',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        stock_code: {
+          type: 'string',
+          description: '股票代码，例如：06603',
+        },
+      },
+      required: ['stock_code'],
     },
   },
 ]; 

@@ -10,13 +10,17 @@ import {
   PaginatedResponse,
   GreyMarketData,
   AllocationInfo,
-  FirstDayPerformance 
+  FirstDayPerformance,
+  PlacingResult,
+  AllocationLevel
 } from '../types/index.js';
 
 export class AipoApiClient {
   private httpClient: AxiosInstance;
+  private jybHttpClient: AxiosInstance;
 
   constructor() {
+    // 创建主HTTP客户端实例（用于aipo.myiqdii.com域名）
     this.httpClient = axios.create({
       baseURL: mcpConfig.aipoBaseUrl,
       timeout: 30000,
@@ -26,7 +30,21 @@ export class AipoApiClient {
         'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
         'Accept-Encoding': 'gzip, deflate, br',
         'Connection': 'keep-alive',
-        'Cache-Control': 'no-cache',
+        'Cache-Control': 'no-cache'
+      },
+    });
+    
+    // 创建第二个HTTP客户端实例（用于jybdata.iqdii.com域名）
+    this.jybHttpClient = axios.create({
+      baseURL: mcpConfig.jybBaseUrl,
+      timeout: 30000,
+      headers: {
+        'User-Agent': mcpConfig.userAgent,
+        'Accept': 'application/json, */*',
+        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Connection': 'keep-alive',
+        'Cache-Control': 'no-cache'
       },
     });
 
@@ -34,13 +52,26 @@ export class AipoApiClient {
   }
 
   private setupInterceptors(): void {
+    // 为主HTTP客户端设置拦截器
+    this.setupClientInterceptors(this.httpClient, 'AIPO');
+    
+    // 为JYB HTTP客户端设置拦截器
+    this.setupClientInterceptors(this.jybHttpClient, 'JYB');
+  }
+  
+  private setupClientInterceptors(client: AxiosInstance, clientName: string): void {
     // 请求拦截器
-    this.httpClient.interceptors.request.use(
+    client.interceptors.request.use(
       (config) => {
         // 添加随机参数防止缓存
         if (config.url && !config.url.includes('?v=')) {
           const separator = config.url.includes('?') ? '&' : '?';
           config.url += `${separator}v=${Math.random()}`;
+        }
+
+        // 为所有请求添加RequestVerificationToken头部
+        if (mcpConfig.requestVerificationToken) {
+          config.headers['requestverificationtoken'] = mcpConfig.requestVerificationToken;
         }
 
         // 记录请求开始
@@ -61,7 +92,7 @@ export class AipoApiClient {
     );
 
     // 响应拦截器
-    this.httpClient.interceptors.response.use(
+    client.interceptors.response.use(
       (response) => {
         // 记录成功响应 - 简化处理
         return response;
@@ -114,16 +145,71 @@ export class AipoApiClient {
         params: { 
           code: codeParam,
           v: Math.random() // 防缓存参数
-        },
-        headers: {
-          'RequestVerificationToken': mcpConfig.requestVerificationToken
         }
       });
 
-      const data = this.parseIPODetailResponse(response.data, stockCode);
-      return data;
+      // 解析响应数据
+      let result: IPODetail = {
+        stockCode,
+        stockName: '',
+        listingDate: '',
+        sponsor: '',
+        priceRange: '',
+        lotSize: 0,
+        subscriptionPeriod: '',
+        marketCap: 0,
+        peRatio: 0,
+        resultDate: '',
+        industry: '',
+        status: 'unknown',
+        companyInfo: {
+          business: '',
+          totalShares: 0,
+          publicOffering: 0,
+          internationalOffering: 0,
+        }
+      };
+      
+      // 尝试从响应中提取数据
+      try {
+        if (response.data && typeof response.data === 'object') {
+          const data = response.data;
+          if (data.result === 1 && data.data) {
+            const ipoData = data.data;
+            result.stockName = ipoData.name || ipoData.shortName || '';
+            result.lotSize = ipoData.lot || 0;
+            result.priceRange = ipoData.price ? `${ipoData.price}港元` : '';
+            // 可以根据实际返回数据结构添加更多字段
+          }
+        }
+      } catch (parseError) {
+        console.error('解析新股详情数据失败:', parseError);
+      }
+
+      return result;
     } catch (error) {
-      throw new Error(`获取股票${stockCode}详情失败: ${error instanceof Error ? error.message : String(error)}`);
+      console.error(`获取股票${stockCode}详情失败:`, error instanceof Error ? error.message : String(error));
+      // 出错时返回基本结构
+      return {
+        stockCode,
+        stockName: '',
+        listingDate: '',
+        sponsor: '',
+        priceRange: '',
+        lotSize: 0,
+        subscriptionPeriod: '',
+        marketCap: 0,
+        peRatio: 0,
+        resultDate: '',
+        industry: '',
+        status: 'unknown',
+        companyInfo: {
+          business: '',
+          totalShares: 0,
+          publicOffering: 0,
+          internationalOffering: 0,
+        }
+      };
     }
   }
 
@@ -144,16 +230,71 @@ export class AipoApiClient {
   }
 
   /**
-   * 获取配售信息
+   * 获取暗盘列表数据（新接口）
+   * @param stockCode 股票代码
+   * @param pageIndex 页码
+   * @param pageSize 每页数量
+   * @returns 暗盘数据列表
    */
-  async getAllocationInfo(stockCode: string): Promise<AllocationInfo | null> {
+  async getGreyList(stockCode: string, pageIndex: number = 1, pageSize: number = 10): Promise<GreyMarketData | null> {
     try {
-      const detail = await this.getIPODetail(stockCode);
-      const allocationInfo = detail.allocation;
+      const response = await this.httpClient.get(API_ENDPOINTS.GET_GREY_LIST, {
+        params: {
+          symbol: stockCode.padStart(5, '0'),
+          sector: '',
+          pageIndex,
+          pageSize,
+          orderField: 'ResultDate',
+          orderBy: 'DESC',
+          v: Math.random() // 防缓存参数
+        }
+      });
+
+      if (response.data && response.data.result === 1 && response.data.data) {
+        const greyData = this.parseGreyListData(response.data.data, stockCode);
+        return greyData;
+      }
       
-      return allocationInfo || null;
+      return null;
     } catch (error) {
-      console.error(`获取${stockCode}配售信息失败:`, error instanceof Error ? error.message : String(error));
+      console.error(`获取${stockCode}暗盘列表数据失败:`, error instanceof Error ? error.message : String(error));
+      return null;
+    }
+  }
+
+  /**
+   * 解析暗盘列表数据
+   * @param data API返回的数据
+   * @param stockCode 股票代码
+   * @returns 格式化后的暗盘数据
+   */
+  private parseGreyListData(data: any, stockCode: string): GreyMarketData | null {
+    try {
+      if (!data.dataList || data.dataList.length === 0) {
+        return null;
+      }
+
+      const item = data.dataList[0];
+      
+      // 构建暗盘数据
+      const greyMarketData: GreyMarketData = {
+        stockCode: item.symbol || stockCode,
+        currentPrice: item.grayPrice || item.price || 0,
+        changePercent: item.grayPriceChg || 0,
+        volume: item.grayZl || 0,
+        brokerQuotes: [],
+        lastUpdated: new Date().toISOString(),
+        // 添加额外信息
+        ipoPricing: item.ipoPricing || 0,
+        turnover: item.grayZe || 0, // 成交额
+        shortName: item.shortName || '',
+        listingDate: item.listedDate ? new Date(item.listedDate).toISOString().split('T')[0] : '',
+        resultDate: item.resultDate ? new Date(item.resultDate).toISOString().split('T')[0] : '',
+      };
+
+      return greyMarketData;
+    } catch (error) {
+      console.error('解析暗盘列表数据失败:', error);
       return null;
     }
   }
@@ -163,12 +304,96 @@ export class AipoApiClient {
    */
   async getFirstDayPerformance(stockCode: string): Promise<FirstDayPerformance | null> {
     try {
-      const detail = await this.getIPODetail(stockCode);
-      const performance = detail.firstDayPerformance;
-      
-      return performance || null;
+      // 由于NewStockBrief接口已移除，首日表现数据暂时无法获取
+      console.log(`首日表现数据暂时无法获取，NewStockBrief接口已移除`);
+      return null;
     } catch (error) {
       console.error(`获取${stockCode}首日表现失败:`, error instanceof Error ? error.message : String(error));
+      return null;
+    }
+  }
+
+  /**
+   * 获取新股配售结果
+   * @param stockCode 股票代码
+   * @returns 配售结果数据
+   */
+  async getPlacingResult(stockCode: string): Promise<PlacingResult | null> {
+    try {
+      // 格式化股票代码（添加E前缀）
+      const codeParam = `E${stockCode.padStart(5, '0')}`;
+      
+      // 发送请求获取配售结果
+      const response = await this.jybHttpClient.post(API_ENDPOINTS.GET_PLACING_RESULT, {
+        code: codeParam,
+        count: "-1"  // 获取所有层级的配售结果
+      }, {
+        params: {
+          lang: 'chs'  // 使用简体中文
+        }
+      });
+
+      // 解析配售结果
+      if (response.data && response.data.result === 1 && response.data.data) {
+        return this.parsePlacingResultData(response.data.data, stockCode);
+      }
+      
+      return null;
+    } catch (error) {
+      console.error(`获取股票${stockCode}配售结果失败:`, error instanceof Error ? error.message : String(error));
+      return null;
+    }
+  }
+
+  /**
+   * 解析配售结果数据
+   * @param data API返回的数据
+   * @param stockCode 股票代码
+   * @returns 格式化后的配售结果数据
+   */
+  private parsePlacingResultData(data: any, stockCode: string): PlacingResult | null {
+    try {
+      if (!data) {
+        return null;
+      }
+
+      // 解析配售层级列表
+      const allocationList: AllocationLevel[] = (data.list || []).map((item: any) => {
+        return {
+          shares: parseInt(item[0]) || 0,
+          applicants: parseInt(item[1]) || 0,
+          successfulApplicants: item[2] ? parseInt(item[2]) : null,
+          winningRate: parseFloat(item[3]) || 0,
+          allocationDetails: item[4] || '',
+          isPlacee: parseInt(item[5]) || 0,
+          amount: parseFloat(item[6]) || 0
+        };
+      });
+      
+      // 构建配售结果数据
+      const placingResult: PlacingResult = {
+        stockCode: stockCode,
+        stockName: data.name || '',
+        lotSize: parseInt(data.lot) || 0,
+        totalShares: parseFloat(data.sz) || 0,
+        allocationRate: data.rate || '',
+        clawBack: parseFloat(data.claw_back) || 0,
+        subscribed: parseFloat(data.subscribed) || 0,
+        placementTimes: parseFloat(data.placement_times) || 0,
+        codesRate: parseFloat(data.codes_rate) || 0,
+        headHammer: parseInt(data.head_hammer) || 0,
+        priceCeiling: parseFloat(data.price_ceiling) || 0,
+        priceFloor: parseFloat(data.price_floor) || 0,
+        ipoPricing: parseFloat(data.ipo_pricing) || 0,
+        raiseMoney: parseFloat(data.raiseMoney) || 0,
+        invalidApplication: parseInt(data.invalidApplication) || 0,
+        allocationResultUrl: data.rlink || undefined,
+        allocationList
+      };
+      
+      return placingResult;
+    } catch (error) {
+      console.error('解析配售结果数据失败:', error);
       return null;
     }
   }
@@ -250,59 +475,7 @@ export class AipoApiClient {
     };
   }
 
-  /**
-   * 解析新股详情响应
-   */
-  private parseIPODetailResponse(data: any, stockCode: string): IPODetail {
-    try {
-      // 新的/Home/NewStockBrief接口返回JSON格式
-      if (data && typeof data === 'string') {
-        // 尝试解析JSON响应
-        try {
-          const jsonData = JSON.parse(data);
-          if (jsonData && jsonData.msg) {
-            const parsedMsg = JSON.parse(jsonData.msg);
-            return this.parseNewStockBriefData(parsedMsg, stockCode);
-          }
-        } catch (jsonError) {
-          console.error('JSON解析失败，尝试HTML解析:', jsonError);
-          return this.parseIPODetailFromHTML(data, stockCode);
-        }
-      } else if (data && typeof data === 'object') {
-        // 直接是JSON对象
-        if (data.msg) {
-          const parsedMsg = typeof data.msg === 'string' ? JSON.parse(data.msg) : data.msg;
-          return this.parseNewStockBriefData(parsedMsg, stockCode);
-        }
-        return this.parseNewStockBriefData(data, stockCode);
-      }
-      
-      // 默认返回基础结构
-      return {
-        stockCode,
-        stockName: '',
-        listingDate: '',
-        sponsor: '',
-        priceRange: '',
-        lotSize: 0,
-        subscriptionPeriod: '',
-        marketCap: 0,
-        peRatio: 0,
-        resultDate: '',
-        industry: '',
-        status: 'unknown',
-        companyInfo: {
-          business: '',
-          totalShares: 0,
-          publicOffering: 0,
-          internationalOffering: 0,
-        },
-      };
-    } catch (error) {
-      console.error('解析新股详情响应失败:', error);
-      throw error;
-    }
-  }
+  // parseIPODetailResponse 方法已移除
 
   /**
    * 从HTML解析新股详情
@@ -353,11 +526,8 @@ export class AipoApiClient {
     // 尝试提取暗盘数据
     detail.greyMarket = this.extractGreyMarketFromHTML($) || undefined;
     
-    // 尝试提取配售信息
-    detail.allocation = this.extractAllocationFromHTML($) || undefined;
-    
-    // 尝试提取首日表现
-    detail.firstDayPerformance = this.extractFirstDayPerformanceFromHTML($) || undefined;
+    // 首日表现功能已移除
+    detail.firstDayPerformance = undefined;
 
     return detail;
   }
@@ -523,10 +693,10 @@ export class AipoApiClient {
    * 从HTML中提取暗盘数据
    */
   private extractGreyMarketFromHTML($: cheerio.CheerioAPI): GreyMarketData | null {
-    // 查找暗盘相关的表格和数据
-    const greyTables = $('#tbInnerDisk, #tbOutDisk, .dark_');
+    // 查找暗盘相关的表格
+    const greyMarketTables = $('#tbGreyMarketData, .grey_market');
     
-    if (greyTables.length === 0) {
+    if (greyMarketTables.length === 0) {
       return null;
     }
 
@@ -541,225 +711,7 @@ export class AipoApiClient {
     };
   }
 
-  /**
-   * 从HTML中提取配售信息
-   */
-  private extractAllocationFromHTML($: cheerio.CheerioAPI): AllocationInfo | null {
-    // 查找配售相关的表格
-    const allocationTables = $('#tbPlacingResultDetail, .placing_result');
-    
-    if (allocationTables.length === 0) {
-      return null;
-    }
+  // extractFirstDayPerformanceFromHTML 方法已移除
 
-    return {
-      publicOfferingRatio: 0,
-      internationalOfferingRatio: 0,
-      allocationRate: 0,
-      subscriptionMultiple: 0,
-      retailInvestors: 0,
-      institutionalInvestors: 0,
-    };
-  }
-
-  /**
-   * 从HTML中提取首日表现
-   */
-  private extractFirstDayPerformanceFromHTML($: cheerio.CheerioAPI): FirstDayPerformance | null {
-    // 查找首日表现相关的表格
-    const performanceTables = $('#tbGreyFirstData, .first_day_performance');
-    
-    if (performanceTables.length === 0) {
-      return null;
-    }
-
-    return {
-      stockCode: '',
-      openPrice: 0,
-      highPrice: 0,
-      lowPrice: 0,
-      closePrice: 0,
-      changePercent: 0,
-      volume: 0,
-      turnoverRate: 0,
-      marketCap: 0,
-      listingDate: '',
-    };
-  }
-
-    /**
-   * 解析新的/Home/NewStockBrief接口返回的JSON数据
-   */
-  private parseNewStockBriefData(data: any, stockCode: string): IPODetail {
-    try {
-      const issuanceInfo = data?.data?.issuanceinfo;
-      const institutionInfo = data?.data?.institutioninfo;
-      const managerInfo = data?.data?.managerinfo || [];
-      const investorInfo = data?.data?.investorinfo || [];
-      
-      if (!issuanceInfo) {
-        throw new Error('API返回数据结构不完整');
-      }
-
-      // 格式化价格信息
-      let priceRange = '';
-      if (issuanceInfo.ipopricing && issuanceInfo.ipopricing !== '' && issuanceInfo.ipopricing !== '--') {
-        priceRange = `${issuanceInfo.ipopricing}港元`;
-      } else if (issuanceInfo.ipoprice) {
-        if (issuanceInfo.ipoprice.floor && issuanceInfo.ipoprice.ceiling) {
-          if (issuanceInfo.ipoprice.floor === issuanceInfo.ipoprice.ceiling) {
-            priceRange = `${issuanceInfo.ipoprice.ceiling}港元`;
-          } else {
-            priceRange = `${issuanceInfo.ipoprice.floor}-${issuanceInfo.ipoprice.ceiling}港元`;
-          }
-        }
-      }
-
-      // 格式化日期
-      const formatDate = (dateObj: any) => {
-        if (!dateObj) return '';
-        if (typeof dateObj === 'string') {
-          return new Date(dateObj).toISOString().split('T')[0];
-        }
-        if (dateObj.start && dateObj.end) {
-          const start = new Date(dateObj.start).toISOString().split('T')[0];
-          const end = new Date(dateObj.end).toISOString().split('T')[0];
-          return `${start} - ${end}`;
-        }
-        return '';
-      };
-
-      // 格式化募资金额
-      const formatAmount = (amount: string | number) => {
-        if (!amount || amount === '--') return 0;
-        if (typeof amount === 'number') return amount;
-        // 移除单位和格式化
-        const cleanAmount = amount.toString().replace(/[万亿,-]/g, '');
-        return parseFloat(cleanAmount) || 0;
-      };
-
-      // 提取承销商信息
-      const getAllUnderwriters = () => {
-        const allUnderwriters = new Set();
-        if (issuanceInfo.sponsors) allUnderwriters.add(issuanceInfo.sponsors);
-        if (issuanceInfo.leadagent) {
-          issuanceInfo.leadagent.split(',').forEach((agent: string) => allUnderwriters.add(agent.trim()));
-        }
-        if (issuanceInfo.bookrunners) {
-          issuanceInfo.bookrunners.split(',').forEach((runner: string) => allUnderwriters.add(runner.trim()));
-        }
-        return Array.from(allUnderwriters).join(', ');
-      };
-
-      return {
-        stockCode: stockCode,
-        stockName: issuanceInfo.name || issuanceInfo.fullname || '',
-        listingDate: formatDate(issuanceInfo.listeddate),
-        sponsor: issuanceInfo.sponsors || '',
-        priceRange: priceRange,
-        lotSize: issuanceInfo.shares || 0,
-        subscriptionPeriod: formatDate(issuanceInfo.ipodate),
-        marketCap: formatAmount(issuanceInfo.H_marketcap_units || issuanceInfo.H_marketcap),
-        peRatio: parseFloat(issuanceInfo.pe) || 0,
-        resultDate: formatDate(issuanceInfo.resultdate),
-        industry: issuanceInfo.industry || '',
-        status: 'active',
-        
-        // 扩展公司信息
-        companyInfo: {
-          business: institutionInfo?.principalactivities || '',
-          totalShares: issuanceInfo.IssuedCapital || 0,
-          publicOffering: issuanceInfo.issuenumberhk_units || formatAmount(issuanceInfo.issuenumberhK),
-          internationalOffering: issuanceInfo.issuenumberother_units || formatAmount(issuanceInfo.issuenumberother),
-          
-          // 新增的详细信息
-          fullName: issuanceInfo.fullname || '',
-          website: institutionInfo?.website || '',
-          principalOffice: institutionInfo?.principaloffice || '',
-          registrars: institutionInfo?.registrars || '',
-          registrarsTel: institutionInfo?.registrarstel || '',
-          chairman: institutionInfo?.chairman || '',
-          secretary: institutionInfo?.secretary || '',
-          telephone: institutionInfo?.telephone || '',
-          substantialShareholders: institutionInfo?.substantialshareholders || '',
-          
-          // 发行信息
-          minimumCapital: formatAmount(issuanceInfo.minimumcapital),
-          raiseMoney: formatAmount(issuanceInfo.raisemoney_units || issuanceInfo.raisemoney),
-          totalMarketCap: formatAmount(issuanceInfo.marketcap_units || issuanceInfo.marketcap),
-          hkMarketCap: formatAmount(issuanceInfo.H_marketcap_units || issuanceInfo.H_marketcap),
-          issueRatio: parseFloat(issuanceInfo.IssueRatio) || 0,
-          overAllotment: issuanceInfo.OverAllotment || '',
-          stabilizingManager: issuanceInfo.StabilizingManager || '',
-          underwritingFee: parseFloat(issuanceInfo.underwritingFee) || 0,
-          listingExpenses: parseFloat(issuanceInfo.listingexpenses) || 0,
-          currency: issuanceInfo.Currency || '',
-          
-          // 用途说明
-          useOfProceeds: issuanceInfo.use || '',
-          
-          // 承销团信息
-          allUnderwriters: getAllUnderwriters(),
-          leadAgent: issuanceInfo.leadagent || '',
-          bookRunners: issuanceInfo.bookrunners || '',
-          coordinator: issuanceInfo.coordinator || '',
-          
-          // 招股书链接
-          prospectusLink: issuanceInfo.link || '',
-          
-          // A股信息（如果是A+H股）
-          isAHStock: issuanceInfo.isAHStock === 1,
-          aSymbol: issuanceInfo.aSymbol || '',
-          
-          // 管理层信息
-          management: managerInfo.map((manager: any) => ({
-            name: manager.managername || '',
-            position: manager.post || '',
-            rank: manager.rankno || 0
-          })),
-          
-          // 基石投资者信息
-          cornerStoneInvestors: investorInfo.map((investor: any) => ({
-            name: investor.institutionname || '',
-            shareholding: parseFloat(investor.shareholding) || 0,
-            percentage: investor.percentage || 0,
-            releaseDate: formatDate(investor.ReleaseDate),
-            relatedParty: investor.relatedparty || '',
-            investorType: investor.InverstorType || '',
-            investmentAmount: parseFloat(investor.investmentAmount) || 0
-          })),
-          
-          totalCornerStonePercentage: data?.data?.TotalShareholdingPercentage || 0,
-        },
-        
-        // 从新接口暂时无法获取的数据，设置为undefined
-        greyMarket: undefined,
-        allocation: undefined,
-        firstDayPerformance: undefined,
-      };
-    } catch (error) {
-      console.error('解析NewStockBrief数据失败:', error);
-      // 返回基础结构
-      return {
-        stockCode,
-        stockName: '',
-        listingDate: '',
-        sponsor: '',
-        priceRange: '',
-        lotSize: 0,
-        subscriptionPeriod: '',
-        marketCap: 0,
-        peRatio: 0,
-        resultDate: '',
-        industry: '',
-        status: 'unknown',
-        companyInfo: {
-          business: '',
-          totalShares: 0,
-          publicOffering: 0,
-          internationalOffering: 0,
-        },
-      };
-    }
-  }
+    // parseNewStockBriefData 方法已移除
 } 

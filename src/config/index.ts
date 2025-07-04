@@ -6,6 +6,7 @@ config();
 
 export const mcpConfig: MCPConfig = {
   aipoBaseUrl: process.env.AIPO_BASE_URL || 'https://aipo.myiqdii.com',
+  jybBaseUrl: process.env.JYB_BASE_URL || 'https://jybdata.iqdii.com',  // 添加新的API基础URL
   userAgent: process.env.AIPO_USER_AGENT || 'Mozilla/5.0 (compatible; HKIPO-MCP-Server)',
   rateLimit: parseInt(process.env.RATE_LIMIT || '100'),
   rateLimitWindow: parseInt(process.env.RATE_LIMIT_WINDOW || '3600'),
@@ -19,20 +20,15 @@ export const API_ENDPOINTS = {
   GET_IPO_LIST: '/Home/GetHKIPOInfoMore',
   GET_IPO_DETAIL: '/Home/NewStockBrief',
   
-  // 滚动信息
-  GET_TOP_SCROLL: '/Home/GetTopScrollList',
-  
-  // 横幅信息
-  GET_BANNER_LIST: '/Home/GetBannerList',
-  
   // 订单详情
   QUERY_ORDER_DETAIL: '/home/QueryOrderDetail',
   
-  // 暗盘相关（可能需要进一步分析HAR文件获取）
-  GET_GREY_MARKET: '/grey-market', // 待确认
+  // 暗盘相关
+  GET_GREY_MARKET: '/grey-market', // 旧的暗盘接口（已弃用）
+  GET_GREY_LIST: '/Home/GetGreyList', // 新的暗盘列表接口
   
-  // 配售信息（可能需要进一步分析HAR文件获取）
-  GET_ALLOCATION_INFO: '/allocation', // 待确认
+  // 配售结果（新增）
+  GET_PLACING_RESULT: '/jybapp/IPOService/GetPlacingResult', // 新股配售结果接口
 } as const;
 
 export default mcpConfig; 
